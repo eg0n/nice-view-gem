@@ -17,8 +17,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/keymap.h>
 #include <zmk/usb.h>
 #include <zmk/wpm.h>
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ESB)
+#include <zmk_split_esb/events/peripheral_link_changed.h>
+#endif
 
 #include "battery.h"
+#include "peripheral.h"
 #include "layer.h"
 #include "output.h"
 #include "profile.h"
@@ -38,6 +42,9 @@ static void draw_top(lv_obj_t *widget, const struct status_state *state) {
     // Draw widgets
     draw_output_status(canvas, state);
     draw_battery_status(canvas, state);
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS)
+    draw_peripheral_status(canvas, state);
+#endif
 
     // Rotate for horizontal display
     rotate_canvas(canvas);
@@ -197,6 +204,60 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_wpm_status, struct wpm_status_state, wpm_stat
 ZMK_SUBSCRIPTION(widget_wpm_status, zmk_wpm_state_changed);
 
 /**
+ * Peripheral status: the first peripheral's battery, and on ESB split its link
+ **/
+
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS)
+
+static void set_peripheral_status(struct zmk_widget_screen *widget,
+                                  struct peripheral_status_state state) {
+    widget->state.peripheral_connected = state.connected;
+    widget->state.peripheral_battery = state.battery;
+
+    draw_top(widget->obj, &widget->state);
+}
+
+static void peripheral_status_update_cb(struct peripheral_status_state state) {
+    struct zmk_widget_screen *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_peripheral_status(widget, state); }
+}
+
+/* BLE split reports no link changes, so there a battery report stands for the link. */
+static struct peripheral_status_state peripheral_status = {
+    .connected = !IS_ENABLED(CONFIG_ZMK_SPLIT_ESB),
+    .battery = -1,
+};
+
+static struct peripheral_status_state peripheral_status_get_state(const zmk_event_t *eh) {
+    if (eh == NULL) {
+        return peripheral_status;
+    }
+
+    const struct zmk_peripheral_battery_state_changed *battery =
+        as_zmk_peripheral_battery_state_changed(eh);
+    if (battery != NULL && battery->source == 0) {
+        peripheral_status.battery = battery->state_of_charge;
+    }
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ESB)
+    const struct zmk_split_esb_peripheral_link_changed *link =
+        as_zmk_split_esb_peripheral_link_changed(eh);
+    if (link != NULL && link->source == 0) {
+        peripheral_status.connected = link->connected;
+    }
+#endif
+    return peripheral_status;
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_peripheral_status, struct peripheral_status_state,
+                            peripheral_status_update_cb, peripheral_status_get_state)
+ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_peripheral_battery_state_changed);
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ESB)
+ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_split_esb_peripheral_link_changed);
+#endif
+
+#endif /* IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS) */
+
+/**
  * Initialization
  **/
 
@@ -223,6 +284,9 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
     widget_layer_status_init();
     widget_output_status_init();
     widget_wpm_status_init();
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS)
+    widget_peripheral_status_init();
+#endif
 
     return 0;
 }

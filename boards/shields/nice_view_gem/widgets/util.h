@@ -32,6 +32,10 @@ struct status_state {
     uint8_t layer_index;
     const char *layer_label;
     uint8_t wpm[10];
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS)
+    bool peripheral_connected;
+    int8_t peripheral_battery; /* -1: not reported yet */
+#endif
 #else
     bool connected;
 #endif
