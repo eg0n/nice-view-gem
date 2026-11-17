@@ -4,8 +4,12 @@
 
 LV_IMG_DECLARE(bolt);
 
-/* Moved up a little when the peripheral's row sits below it. */
-#define ROW_Y (IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS) ? 16 : 19)
+/* Moved up a little when more rows sit below it. */
+#define ROW_Y                                                                                      \
+    (IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS) ||                                         \
+             IS_ENABLED(CONFIG_NICE_VIEW_GEM_LINK_STATS)                                           \
+         ? 16                                                                                      \
+         : 19)
 
 static void draw_level(lv_obj_t *canvas, const struct status_state *state) {
     lv_draw_label_dsc_t label_right_dsc;

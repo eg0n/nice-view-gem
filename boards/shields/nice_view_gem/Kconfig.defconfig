@@ -36,14 +36,22 @@ config NICE_VIEW_GEM_WPM_FIXED_RANGE_MAX
     default 100
 
 config NICE_VIEW_GEM_PERIPHERAL_STATUS
-    bool "Show the peripheral's link and battery on the central"
+    bool "Show the peripheral's link on the central"
     depends on ZMK_SPLIT_ROLE_CENTRAL
     default y if ZMK_SPLIT_ESB
     help
-      A row under the battery with the (first) peripheral's battery level,
-      or OFF while it is not linked. The link comes from zmk-split-esb;
-      on BLE split, enable ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING
-      for the battery level.
+      A row under the battery for the (first) peripheral: OFF while it is
+      not linked, else the signal strength of its packets on ESB split
+      (zmk-split-esb), or its battery level on BLE split (enable
+      ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING).
+
+config NICE_VIEW_GEM_LINK_STATS
+    bool "Show ESB key latency on the peripheral"
+    depends on ZMK_SPLIT_ESB && !ZMK_SPLIT_ROLE_CENTRAL
+    default y
+    help
+      A row under the battery, LAT: the average time a key event waited
+      for the central's ACK over the last second of typing.
 
 config NICE_VIEW_GEM_ANIMATION
     bool "Enable animation on peripheral"

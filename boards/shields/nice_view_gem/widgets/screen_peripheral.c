@@ -13,8 +13,13 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/display.h>
 #include <zmk/usb.h>
 
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_LINK_STATS)
+#include <zmk_split_esb/stats.h>
+#endif
+
 #include "animation.h"
 #include "battery.h"
+#include "link_stats.h"
 #include "output.h"
 #include "screen_peripheral.h"
 
@@ -31,6 +36,9 @@ static void draw_top(lv_obj_t *widget, const struct status_state *state) {
     // Draw widgets
     draw_output_status(canvas, state);
     draw_battery_status(canvas, state);
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_LINK_STATS)
+    draw_link_stats(canvas, state);
+#endif
 
     // Rotate for horizontal display
     rotate_canvas(canvas);
@@ -100,6 +108,36 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_peripheral_status, struct peripheral_status_s
 ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_split_peripheral_status_changed);
 
 /**
+ * Link stats: zmk-split-esb counts them; no event carries them, so poll once a second
+ **/
+
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_LINK_STATS)
+
+static void link_stats_tick(lv_timer_t *timer) {
+    static uint32_t prev_sum, prev_count, latency_us;
+
+    uint32_t sum = (uint32_t)atomic_get(&zmk_split_esb_stats.key_lat_sum_us);
+    uint32_t count = (uint32_t)atomic_get(&zmk_split_esb_stats.key_lat_count);
+
+    /* The last second with keys sets the latency; idle seconds keep it. */
+    if (count != prev_count) {
+        latency_us = (sum - prev_sum) / (count - prev_count);
+    }
+    prev_sum = sum;
+    prev_count = count;
+
+    struct zmk_widget_screen *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (widget->state.key_latency_us != latency_us) {
+            widget->state.key_latency_us = latency_us;
+            draw_top(widget->obj, &widget->state);
+        }
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_NICE_VIEW_GEM_LINK_STATS) */
+
+/**
  * Initialization
  **/
 
@@ -118,6 +156,9 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
     sys_slist_append(&widgets, &widget->node);
     widget_battery_status_init();
     widget_peripheral_status_init();
+#if IS_ENABLED(CONFIG_NICE_VIEW_GEM_LINK_STATS)
+    lv_timer_create(link_stats_tick, 1000, NULL);
+#endif
 
     return 0;
 }

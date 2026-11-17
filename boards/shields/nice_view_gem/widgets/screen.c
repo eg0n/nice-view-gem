@@ -19,6 +19,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/wpm.h>
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ESB)
 #include <zmk_split_esb/events/peripheral_link_changed.h>
+#include <zmk_split_esb/stats.h>
 #endif
 
 #include "battery.h"
@@ -253,6 +254,18 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_peripheral_status, struct peripheral_status_s
 ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_peripheral_battery_state_changed);
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ESB)
 ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_split_esb_peripheral_link_changed);
+
+/* No event carries the signal strength, so poll it. */
+static void peripheral_rssi_tick(lv_timer_t *timer) {
+    int rssi = zmk_split_esb_peripheral_rssi(0);
+    struct zmk_widget_screen *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (widget->state.peripheral_rssi != rssi) {
+            widget->state.peripheral_rssi = rssi;
+            draw_top(widget->obj, &widget->state);
+        }
+    }
+}
 #endif
 
 #endif /* IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS) */
@@ -286,6 +299,9 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
     widget_wpm_status_init();
 #if IS_ENABLED(CONFIG_NICE_VIEW_GEM_PERIPHERAL_STATUS)
     widget_peripheral_status_init();
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ESB)
+    lv_timer_create(peripheral_rssi_tick, 1000, NULL);
+#endif
 #endif
 
     return 0;
