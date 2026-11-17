@@ -1,13 +1,18 @@
 #include <zephyr/kernel.h>
+#include <zmk/ble.h>
 #include "profile.h"
 
-LV_IMG_DECLARE(profiles);
-
+/* One dot per profile the keyboard has: the corners of a 3x3 square, 7 px apart. */
 static void draw_inactive_profiles(lv_obj_t *canvas, const struct status_state *state) {
-    lv_draw_image_dsc_t img_dsc;
-    lv_draw_image_dsc_init(&img_dsc);
+    lv_draw_rect_dsc_t rect_white_dsc;
+    init_rect_dsc(&rect_white_dsc, LVGL_FOREGROUND);
 
-    canvas_draw_img(canvas, 18, 129 + BUFFER_OFFSET_BOTTOM, &profiles, &img_dsc);
+    for (int i = 0; i < ZMK_BLE_PROFILE_COUNT; i++) {
+        for (int corner = 0; corner < 4; corner++) {
+            canvas_draw_rect(canvas, 18 + i * 7 + (corner & 1) * 2,
+                             129 + BUFFER_OFFSET_BOTTOM + (corner >> 1) * 2, 1, 1, &rect_white_dsc);
+        }
+    }
 }
 
 static void draw_active_profile(lv_obj_t *canvas, const struct status_state *state) {
